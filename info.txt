@@ -1,0 +1,4 @@
+name = Shape Collapsor
+author = NLferdiNL
+description = [noupload]Shape Collapsor
+tags = Tool
