@@ -2,6 +2,7 @@
 
 binds = {
 	Shoot = "usetool",
+	Alt_Fire = "rmb",
 	Open_Menu = "c",
 }
 

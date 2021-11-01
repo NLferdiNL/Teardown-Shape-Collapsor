@@ -7,9 +7,20 @@
 toolName = "shapecollapsor"
 toolReadableName = "Shape Collapsor"
 
--- TODO: AaBb Destruction
+-- TODO: AaBb Get faces and render sprites on them.
 
 local menu_disabled = false
+
+local aabbActive = false
+
+local aabbMinPosSet = false
+local aabbMaxPosSet = false
+
+local aimPoint = Vec()
+local aabbMinPos = Vec()
+local aabbMaxPos = Vec()
+
+local faceSprite = LoadSprite("MOD/sprites/square.png")
 
 savedVars = {
 	PerUnit = { default = 2, current = nil, valueType = "float" },
@@ -35,11 +46,20 @@ function tick(dt)
 		return
 	end
 	
+	if aabbActive then
+		renderAabbZone()
+	end
+	
 	if isMenuOpenRightNow then
 		return
 	end
 	
 	aimLogic()
+	
+	if InputPressed(binds["Alt_Fire"]) then
+		altFireLogic()
+		return
+	end
 	
 	if InputPressed(binds["Shoot"]) then
 		shootLogic()
@@ -73,6 +93,49 @@ function shootLogic()
 	end]]--
 end
 
+function checkAxis(a, b, i)
+	if a[i] > b[i] then
+		local backup = b[i]
+		b[i] = a[i]
+		a[i] = backup
+	end
+end
+
+function altFireLogic()
+	if aabbActive and aabbMinPosSet and aabbMaxPosSet then
+		aabbActive = false
+		aabbMinPosSet = false
+		aabbMaxPosSet = false
+		
+		checkAxis(aabbMinPos, aabbMaxPos, 1)
+		checkAxis(aabbMinPos, aabbMaxPos, 2)
+		checkAxis(aabbMinPos, aabbMaxPos, 3)
+		
+		collapseAaBb(aabbMinPos, aabbMaxPos)
+		return
+	end
+	
+	local cameraTransform = GetPlayerCameraTransform()
+	local origin = cameraTransform.pos
+	local direction = TransformToParentVec(cameraTransform, Vec(0, 0, -1))
+	
+	local hit, hitPoint, distance, normal, shape = raycast(origin, direction)
+	
+	if not hit then
+		return
+	end
+	
+	aabbActive = true
+	
+	if not aabbMinPosSet then
+		aabbMinPosSet = true
+		aabbMinPos = VecCopy(hitPoint)
+	elseif not aabbMaxPosSet then
+		aabbMaxPosSet = true
+		aabbMaxPos = VecCopy(hitPoint)
+	end
+end
+
 function aimLogic()
 	local cameraTransform = GetPlayerCameraTransform()
 	local origin = cameraTransform.pos
@@ -86,6 +149,8 @@ function aimLogic()
 	
 	local shapeBody = GetShapeBody(shape)
 	
+	aimPoint = VecCopy(hitPoint)
+	
 	DrawShapeOutline(shape)
 	DrawShapeHighlight(shape, 0.5)
 end
@@ -94,9 +159,13 @@ end
 function collapseShape(shape)
 	local shapeMin, shapeMax = GetShapeBounds(shape)
 	
-	local xWidth = math.abs(shapeMin[1] - shapeMax[1]) + 1
-	local yWidth = math.abs(shapeMin[2] - shapeMax[2]) + 1
-	local zWidth = math.abs(shapeMin[3] - shapeMax[3]) + 1
+	collapseAaBb(shapeMin, shapeMax)
+end
+
+function collapseAaBb(minPos, maxPos)
+	local xWidth = math.abs(minPos[1] - maxPos[1]) + 1
+	local yWidth = math.abs(minPos[2] - maxPos[2]) + 1
+	local zWidth = math.abs(minPos[3] - maxPos[3]) + 1
 	
 	local perUnit = GetValue("PerUnit")
 	local holeSize = GetValue("HoleSize")
@@ -108,11 +177,67 @@ function collapseShape(shape)
 	for x = -1, xWidth, perUnit do
 		for y = -1, yWidth, perUnit do
 			for z = -1, zWidth, perUnit do
-				local currVec = VecAdd(shapeMin, Vec(x, y, z))
+				local currVec = VecAdd(minPos, Vec(x, y, z))
+				--SpawnParticle(currVec, Vec(), 50)
 				MakeHole(currVec, holeSize, holeSize, holeSize)
 			end
 		end
 	end
+end
+
+function renderAabbZone()
+	local maxPos = nil
+	
+	if aabbMaxPosSet then
+		maxPos = aabbMaxPos
+	else
+		maxPos = aimPoint
+	end
+
+	local xWidth = -(aabbMinPos[1] - maxPos[1])
+	local yWidth = -(aabbMinPos[2] - maxPos[2])
+	local zWidth = -(aabbMinPos[3] - maxPos[3])
+
+	local cornerRightBackTop = VecAdd(maxPos, Vec(0, -yWidth, 0))
+	local cornerRightBackBottom = maxPos
+	
+	local cornerRightFrontTop = VecAdd(aabbMinPos, Vec(xWidth, 0, 0))
+	local cornerRightFrontBottom = VecAdd(maxPos, Vec(0, 0, -zWidth))
+	
+	local cornerLeftBackTop = VecAdd(aabbMinPos, Vec(0, 0, zWidth))
+	local cornerLeftBackBottom = VecAdd(aabbMinPos, Vec(0, yWidth, zWidth))
+	
+	local cornerLeftFrontTop = aabbMinPos
+	local cornerLeftFrontBottom = VecAdd(aabbMinPos, Vec(0, yWidth, 0))
+	
+	local frontFace = VecLerp(cornerLeftFrontTop, cornerRightFrontBottom, 0.5)
+	
+	local red = 1
+	local green = 0
+	local blue = 0
+	local alpha = 1
+	local spriteAlpha = 0.5
+	
+	DebugLine(cornerRightBackTop, cornerRightBackBottom, red, green, blue, alpha)
+	DebugLine(cornerRightFrontTop, cornerRightFrontBottom, red, green, blue, alpha)
+	DebugLine(cornerLeftBackTop, cornerLeftBackBottom, red, green, blue, alpha)
+	DebugLine(cornerLeftFrontTop, cornerLeftFrontBottom, red, green, blue, alpha)
+	
+	DebugLine(cornerRightBackTop, cornerLeftBackTop, red, green, blue, alpha)
+	DebugLine(cornerLeftBackBottom, cornerRightBackBottom, red, green, blue, alpha)
+	
+	DebugLine(cornerRightFrontTop, cornerLeftFrontTop, red, green, blue, alpha)
+	DebugLine(cornerLeftFrontBottom, cornerRightFrontBottom, red, green, blue, alpha)
+	
+	DebugLine(cornerRightFrontTop, cornerRightBackTop, red, green, blue, alpha)
+	DebugLine(cornerRightFrontBottom, cornerRightBackBottom, red, green, blue, alpha)
+	
+	DebugLine(cornerLeftFrontTop, cornerLeftBackTop, red, green, blue, alpha)
+	DebugLine(cornerLeftFrontBottom, cornerLeftBackBottom, red, green, blue, alpha)
+	
+	--SpawnParticle(frontFace, Vec(), 1)
+	local lookRot = QuatLookAt(cornerLeftFrontTop, VecAdd(cornerLeftFrontTop, Vec(0, 0, -1)))
+	DrawSprite(faceSprite, Transform(frontFace, lookRot), xWidth, yWidth, red, green, blue, spriteAlpha, false, false)
 end
 
 function GetValue(name)
