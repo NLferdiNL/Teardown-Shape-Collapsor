@@ -22,6 +22,12 @@ local aabbMaxPos = Vec()
 
 local faceSprite = LoadSprite("MOD/sprites/square.png")
 
+local red = 1
+local green = 0
+local blue = 0
+local alpha = 1
+local spriteAlpha = 0.5
+
 savedVars = {
 	PerUnit = { default = 2, current = nil, valueType = "float" },
 	HoleSize = { default = 5, current = nil, valueType = "float" },
@@ -211,13 +217,14 @@ function renderAabbZone()
 	local cornerLeftFrontBottom = VecAdd(aabbMinPos, Vec(0, yWidth, 0))
 	
 	local frontFace = VecLerp(cornerLeftFrontTop, cornerRightFrontBottom, 0.5)
+	local backFace = VecLerp(cornerLeftBackTop, cornerRightBackBottom, 0.5)
 	
-	local red = 1
-	local green = 0
-	local blue = 0
-	local alpha = 1
-	local spriteAlpha = 0.5
+	local leftFace = VecLerp(cornerLeftFrontTop, cornerLeftBackBottom, 0.5)
+	local rightFace = VecLerp(cornerRightFrontTop, cornerRightBackBottom, 0.5)
 	
+	local topFace = VecLerp(cornerLeftFrontTop, cornerRightBackTop, 0.5)
+	local bottomFace = VecLerp(cornerLeftFrontBottom, cornerRightBackBottom, 0.5)
+
 	DebugLine(cornerRightBackTop, cornerRightBackBottom, red, green, blue, alpha)
 	DebugLine(cornerRightFrontTop, cornerRightFrontBottom, red, green, blue, alpha)
 	DebugLine(cornerLeftBackTop, cornerLeftBackBottom, red, green, blue, alpha)
@@ -236,8 +243,22 @@ function renderAabbZone()
 	DebugLine(cornerLeftFrontBottom, cornerLeftBackBottom, red, green, blue, alpha)
 	
 	--SpawnParticle(frontFace, Vec(), 1)
-	local lookRot = QuatLookAt(cornerLeftFrontTop, VecAdd(cornerLeftFrontTop, Vec(0, 0, -1)))
-	DrawSprite(faceSprite, Transform(frontFace, lookRot), xWidth, yWidth, red, green, blue, spriteAlpha, false, false)
+	local frontLookRot = QuatLookAt(Vec(0, 0, 0), Vec(0, 0, -1))
+	local topLookRot = QuatLookAt(Vec(0, 0, 0), Vec(0, -1, 0))
+	local sideLookRot = QuatLookAt(Vec(0, 0, 0), Vec(-1, 0, 0))
+	
+	renderFace(frontFace, frontLookRot, xWidth, yWidth)
+	renderFace(backFace, frontLookRot, xWidth, yWidth)
+	
+	renderFace(leftFace, sideLookRot, zWidth, yWidth)
+	renderFace(rightFace, sideLookRot, zWidth, yWidth)
+	
+	renderFace(topFace, topLookRot, xWidth, zWidth)
+	renderFace(bottomFace, topLookRot, xWidth, zWidth)
+end
+
+function renderFace(pos, rot, xWidth, yWidth)
+	DrawSprite(faceSprite, Transform(pos, rot), xWidth, yWidth, red, green, blue, spriteAlpha, false, false)
 end
 
 function GetValue(name)
