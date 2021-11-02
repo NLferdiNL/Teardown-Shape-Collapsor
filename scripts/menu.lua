@@ -12,7 +12,7 @@ local rebinding = nil
 local erasingBinds = 0
 local erasingValues = 0
 
-local menuWidth = 0.40
+local menuWidth = 0.40 / 2
 local menuHeight = 0.45
 
 local perUnitBox = nil
@@ -36,6 +36,10 @@ function menu_tick(dt)
 		menuOpenActions()
 	end
 	
+	if not menuOpened and menuOpenLastFrame then
+		menuCloseActions()
+	end
+	
 	menuOpenLastFrame = menuOpened
 	
 	if rebinding ~= nil then
@@ -56,12 +60,13 @@ end
 
 function drawTitle()
 	UiPush()
-		UiTranslate(0, -40)
 		UiFont("bold.ttf", 45)
 		
 		local titleText = toolReadableName .. " Settings"
 		
 		local titleBoxWidth, titleBoxHeight = UiGetTextSize(titleText)
+		
+		UiTranslate(0, -40 - titleBoxHeight / 2)
 		
 		UiPush()
 			UiColorFilter(0, 0, 0, 0.25)
@@ -152,20 +157,6 @@ function leftSideMenu()
 	UiPush()
 		UiTranslate(-UiWidth() * menuWidth / 5, 0)
 		
-		UiPush()
-			for i = 1, #bindOrder do
-				local id = bindOrder[i]
-				local key = binds[id]
-				drawRebindable(id, key)
-				UiTranslate(0, 50)
-			end
-		UiPop()
-		
-		UiTranslate(0, 50)
-		textboxClass_render(perUnitBox)
-		
-		UiTranslate(0, 50)
-		textboxClass_render(holeSizeBox)
 	UiPop()
 end
 
@@ -212,9 +203,24 @@ function menu_draw(dt)
 		
 		UiTranslate(0, 50)
 		
-		leftSideMenu()
+		UiPush()
+			for i = 1, #bindOrder do
+				local id = bindOrder[i]
+				local key = binds[id]
+				drawRebindable(id, key)
+				UiTranslate(0, 50)
+			end
+		UiPop()
 		
-		rightSideMenu()
+		UiTranslate(0, 50 * (#bindOrder + 1))
+		textboxClass_render(perUnitBox)
+		
+		UiTranslate(0, 50)
+		textboxClass_render(holeSizeBox)
+		
+		--leftSideMenu()
+		
+		--rightSideMenu()
 	UiPop()
 	
 	UiPush()
@@ -304,6 +310,11 @@ end
 
 function resetValues()
 	menuUpdateActions()
+	
+	ResetValuesToDefault()
+	
+	perUnitBox.value = GetValue("PerUnit") .. ""
+	holeSizeBox.value = GetValue("HoleSize") .. ""
 end
 
 function isMenuOpen()
