@@ -243,9 +243,9 @@ function setupTextBoxes()
 		textBox01.value = GetValue("PerUnit") .. ""
 		textBox01.numbersOnly = true
 		textBox01.limitsActive = true
-		textBox01.numberMin = 0.5
-		textBox01.numberMax = 500
-		textBox01.description = "Min: 0.5\nDefault: 2\nMax: 500"
+		textBox01.numberMin = 0.1
+		textBox01.numberMax = 50
+		textBox01.description = "Min: 0.1\nDefault: 5\nMax: 50"
 		textBox01.onInputFinished = function(v) SetValue("PerUnit", tonumber(v)) end
 		
 		perUnitBox = textBox01
@@ -258,7 +258,7 @@ function setupTextBoxes()
 		textBox02.limitsActive = true
 		textBox02.numberMin = 0.5
 		textBox02.numberMax = 10
-		textBox02.description = "Min: 0.5\nDefault: 5\nMax: 10"
+		textBox02.description = "Min: 0.5\nDefault: 10\nMax: 50"
 		textBox02.onInputFinished = function(v) SetValue("HoleSize", tonumber(v)) end
 		
 		holeSizeBox = textBox02

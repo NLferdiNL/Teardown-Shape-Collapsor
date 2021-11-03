@@ -8,8 +8,6 @@
 toolName = "shapecollapsor"
 toolReadableName = "Shape Collapsor"
 
--- TODO: AaBb Get faces and render sprites on them.
-
 local menu_disabled = false
 
 local aabbActive = false
@@ -63,11 +61,16 @@ function tick(dt)
 	
 	local isMenuOpenRightNow = isMenuOpen()
 	
-	if GetString("game.player.tool") ~= toolName or GetPlayerVehicle() ~= 0 then
+	if not canUseTool() then
 		return
 	end
 	
 	if aabbActive then
+		if GetPlayerGrabShape() ~= 0 or GetPlayerGrabBody() ~= 0 then
+			clearAaBbVars()
+			return
+		end
+	
 		local maxPos = nil
 	
 		if aabbMaxPosSet then
@@ -119,12 +122,16 @@ end
 function draw(dt)
 	menu_draw(dt)
 	
+	if not canUseTool() then
+		return
+	end
+	
 	if largeOperationWarning then
 	UiPush()
 		UiFont("bold.ttf", 18)
 		
-		c_UiColor(Color4.Yellow
-		)
+		c_UiColor(Color4.Yellow)
+		
 		c_UiTextOutline(Color4.Black, 0.5)
 		
 		UiAlign("center bottom")
@@ -133,6 +140,10 @@ function draw(dt)
 		UiText("Large Operation!")
 	UiPop()
 	end
+end
+
+function canUseTool()
+	return GetString("game.player.tool") == toolName and GetPlayerVehicle() == 0 and GetString("game.player.canusetool")
 end
 
 function handleToolBody()
@@ -168,6 +179,8 @@ function shootLogic()
 		return
 	end
 	
+	largeOperationWarning = false
+	
 	collapseShape(shape)
 	
 	--local shapeBody = GetShapeBody(shape)
@@ -179,12 +192,21 @@ function shootLogic()
 	end]]--
 end
 
-function checkLargeOperation(minPos, maxPos, perUnit)
-	local xWidth = math.abs(minPos[1] - maxPos[1])
-	local yWidth = math.abs(minPos[2] - maxPos[2])
-	local zWidth = math.abs(minPos[3] - maxPos[3])
+function checkLargeOperation(minPos, maxPos, perUnit, maxUnit, maxSpace)
+	local xWidth = math.abs(minPos[1] - maxPos[1]) / perUnit
+	local yWidth = math.abs(minPos[2] - maxPos[2]) / perUnit
+	local zWidth = math.abs(minPos[3] - maxPos[3]) / perUnit
 	
-	if xWidth / perUnit > 50 or yWidth / perUnit > 50 or zWidth / perUnit > 50 then
+	maxUnit = maxUnit or 50
+	maxSpace = maxSpace or 30
+	
+	--[[DebugPrint("x " .. xWidth .. " / " .. perUnit .. " = " .. xWidth / perUnit)
+	DebugPrint("y " .. yWidth .. " / " .. perUnit .. " = " .. yWidth / perUnit)
+	DebugPrint("z " .. zWidth .. " / " .. perUnit .. " = " .. zWidth / perUnit)]]--
+	
+	local space = xWidth * zWidth * yWidth
+	
+	if (xWidth / perUnit > maxUnit or yWidth / perUnit > maxUnit or zWidth / perUnit > maxUnit) or space > maxSpace then
 		return true
 	end
 	
@@ -274,12 +296,19 @@ function aimLogic()
 	local hit, hitPoint, distance, normal, shape = raycast(origin, direction)
 	
 	if not hit then
+		if not aabbActive then
+			largeOperationWarning = false
+		end
 		return
 	end
 	
 	local shapeBody = GetShapeBody(shape)
 	
 	aimPoint = VecCopy(hitPoint)
+	
+	local shapeMin, shapeMax = GetShapeBounds(shape)
+	
+	largeOperationWarning = checkLargeOperation(shapeMin, shapeMax, GetValue("PerUnit"), 5)
 	
 	if not aabbActive then
 		DrawShapeOutline(shape)
@@ -316,11 +345,12 @@ function collapseShape(shape)
 	collapseAaBb(shapeMin, shapeMax)
 end
 
-function collapseAaBb(minPos, maxPos, extraWide, perUnit, holeSize, overrideMax)
-	extraWide = extraWide or 1
+function collapseAaBb(minPos, maxPos, extraWide, perUnit, holeSize, overrideMax, offset)
+	extraWide = extraWide or 0
 	perUnit = perUnit or GetValue("PerUnit")
 	holeSize = holeSize or GetValue("HoleSize")
 	overrideMax = overrideMax or false
+	offset = offset or 0.5
 
 	local xWidth = math.abs(minPos[1] - maxPos[1])
 	local yWidth = math.abs(minPos[2] - maxPos[2])
@@ -330,9 +360,12 @@ function collapseAaBb(minPos, maxPos, extraWide, perUnit, holeSize, overrideMax)
 	yWidth = yWidth + extraWide
 	zWidth = zWidth + extraWide
 
-	if checkLargeOperation(minPos, maxPos, perUnit) and not overrideMax then
+	--[[if checkLargeOperation(minPos, maxPos, perUnit) and not overrideMax then
 		return
-	end
+	end]]--
+	
+	local dirToMin = VecDir(minPos, maxPos)
+	minPos = VecAdd(minPos, VecScale(dirToMin, offset * perUnit))
 	
 	local startIndex = -extraWide
 	
