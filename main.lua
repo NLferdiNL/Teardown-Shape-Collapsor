@@ -66,7 +66,7 @@ end
 
 function server.tick(dt)
 	for id in PlayersAdded() do
-		SetToolEnabled(true, id)
+		SetToolEnabled(toolName, true, id)
 		
 		toolStates[id] = 1
 	end
@@ -176,7 +176,6 @@ function client.getToolState()
 end
 
 function client.setToolState(id, state)
-	DebugPrint(id .. ": " .. state)
 	toolStates[id] = state
 end
 
@@ -211,8 +210,6 @@ function client.handleToolBody(id)
 	--[[if (IsPlayerLocal(id) and GetBool('game.thirdperson')) or not IsPlayerLocal(id) then
 		--heldPosition = Vec(0, 0, 0)
 	end]]--
-	
-	DebugPrint(toolState)
 	
 	if toolState == 1 then
 		SetShapeLocalTransform(redVox, Transform(heldPosition, Quat()))

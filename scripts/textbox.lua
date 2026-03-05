@@ -191,21 +191,21 @@ end
 	end
 
 	if me.inputActive then
-		if InputPressed("lmb") then
+		if InputPressed("lmb", 0) then
 			textboxClass_setActiveState(me, textboxClass_checkMouseInRect(me))
-		elseif InputPressed("return") then
+		elseif InputPressed("return", 0) then
 			textboxClass_setActiveState(me, false)
-		elseif InputPressed("backspace") then
+		elseif InputPressed("backspace", 0) then
 			me.value = me.value:sub(1, #me.value - 1)
 		else
 			for j = 1, #inputNumbers do
-				if InputPressed(inputNumbers[j]) then
+				if InputPressed(inputNumbers[j], 0) then
 					me.value = me.value .. inputNumbers[j]
 				end
 			end
 			if not me.numbersOnly then
 				for j = 1, #inputLetters do
-					if InputPressed(inputLetters[j]) then
+					if InputPressed(inputLetters[j], 0) then
 						local newLetter = inputLetters[j]
 						
 						if newLetter == "space" then
