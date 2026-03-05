@@ -1,3 +1,5 @@
+#version 2
+
 local textboxClass = {
 	name = "TextBox",
 	disabled = false,

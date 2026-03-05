@@ -1,3 +1,4 @@
+#version 2
 #include "datascripts/keybinds.lua"
 
 moddataPrefix = "savegame.mod.bodycollapsor"

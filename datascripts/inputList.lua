@@ -1,3 +1,5 @@
+#version 2
+
 local filteredKeys = { esc = "f", 
 					   lmb = "f", 
 					   mmb = "f", 

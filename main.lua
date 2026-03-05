@@ -1,9 +1,12 @@
+#version 2
 #include "scripts/utils.lua"
 #include "scripts/savedata.lua"
 #include "scripts/menu.lua"
 #include "datascripts/keybinds.lua"
 #include "datascripts/inputList.lua"
 #include "datascripts/color4.lua"
+#include "script/include/player.lua"
+#include "script/include/common.lua"
 
 toolName = "shapecollapsor"
 toolReadableName = "Shape Collapsor"
@@ -19,7 +22,7 @@ local aimPoint = Vec()
 local aabbMinPos = Vec()
 local aabbMaxPos = Vec()
 
-local faceSprite = LoadSprite("MOD/sprites/square.png")
+local faceSprite = "MOD/sprites/square.png"
 
 local red = 1
 local green = 0
@@ -46,22 +49,41 @@ savedVars = {
 	HoleSize = { default = 10, current = nil, valueType = "float" },
 }
 
-function init()
+local toolStates = {}
+
+function client.init()
 	saveFileInit(savedVars)
 	menu_init()
 	
+	faceSprite = LoadSprite(faceSprite)
+end
+	
+function server.init()
+	saveFileInit(savedVars)
 	RegisterTool(toolName, toolReadableName, "MOD/vox/tool.vox")
-	SetBool("game.tool." .. toolName .. ".enabled", true)
+	--SetBool("game.tool." .. toolName .. ".enabled", true)
 end
 
-function tick(dt)
+function server.tick(dt)
+	for id in PlayersAdded() do
+		SetToolEnabled(true, id)
+		
+		toolStates[id] = 1
+	end
+end
+
+function client.tick(dt)
+	for id in Players() do
+		client.handleToolBody(id)
+	end
+
 	if not menu_disabled then
 		menu_tick(dt)
 	end
 	
 	local isMenuOpenRightNow = isMenuOpen()
 	
-	if not canUseTool() then
+	if not client.canUseTool() then
 		return
 	end
 	
@@ -101,8 +123,6 @@ function tick(dt)
 		clearAaBbVars()
 	end
 	
-	handleToolBody()
-	
 	aimLogic()
 	
 	if InputPressed(binds["Alt_Fire"]) or (aabbActive and InputPressed(binds["Shoot"])) then
@@ -119,10 +139,11 @@ function tick(dt)
 	end
 end
 
-function draw(dt)
+
+function client.draw(dt)
 	menu_draw(dt)
 	
-	if not canUseTool() then
+	if not client.canUseTool() then
 		return
 	end
 	
@@ -142,30 +163,68 @@ function draw(dt)
 	end
 end
 
-function canUseTool()
-	return GetString("game.player.tool") == toolName and GetPlayerVehicle() == 0 and GetString("game.player.canusetool")
+function client.canUseTool()
+	return GetPlayerTool(0) == toolName and GetPlayerCanUseTool(0) 
 end
 
-function handleToolBody()
-	local toolBody = GetToolBody()
+function server.getToolState(id)
+	ClientCall(id, "client.getToolState")
+end
+
+function client.getToolState()
+	ClientCall(0, "server.setToolState", id, firingMode)
+end
+
+function client.setToolState(id, state)
+	DebugPrint(id .. ": " .. state)
+	toolStates[id] = state
+end
+
+function server.setToolState(id, state)
+	toolStates[id] = state
+	ClientCall(0, "client.setToolState", id, state)
+end
+
+function client.handleToolBody(id)
+	if GetPlayerTool(id) ~= toolName then
+		return
+	end
+	
+	local toolBody = GetToolBody(id)
 	
 	local toolShapes = GetBodyShapes(toolBody)
 	
 	local redVox = toolShapes[1]
 	local yellowVox = toolShapes[2]
 	
+	-- First Person Default
 	local heldPosition = Vec(0.15, -0.3, -0.5)
-	local hiddenPosition = Vec(0, 0, 1)
+	local hiddenPosition = Vec(0, -100, 0)
 	
-	if firingMode == 1 then
+	local toolState = toolStates[id]
+	
+	if toolState == nil then
+		toolState = 1
+		ServerCall("server.getToolState", id)
+	end
+	
+	--[[if (IsPlayerLocal(id) and GetBool('game.thirdperson')) or not IsPlayerLocal(id) then
+		--heldPosition = Vec(0, 0, 0)
+	end]]--
+	
+	DebugPrint(toolState)
+	
+	if toolState == 1 then
 		SetShapeLocalTransform(redVox, Transform(heldPosition, Quat()))
 		
 		SetShapeLocalTransform(yellowVox, Transform(hiddenPosition, Quat()))
-	elseif firingMode == 2 then
+	elseif toolState == 2 then
 		SetShapeLocalTransform(redVox, Transform(hiddenPosition, Quat()))
 		
 		SetShapeLocalTransform(yellowVox, Transform(heldPosition, Quat()))
 	end
+	
+	SetToolHandPoseLocalTransform(Transform(Vec(0.3, -0.2, -0.4)), nil, id)
 end
 
 function shootLogic()
@@ -181,7 +240,7 @@ function shootLogic()
 	
 	largeOperationWarning = false
 	
-	collapseShape(shape)
+	ServerCall("server.collapseShape", shape)
 	
 	--local shapeBody = GetShapeBody(shape)
 	
@@ -228,6 +287,8 @@ function changeFiringMode()
 		firingMode = 1
 	end
 	
+	ServerCall("server.setToolState", GetLocalPlayer(), firingMode)
+	
 	if firingMode == 1 then
 		red = 1
 		green = 0
@@ -259,9 +320,9 @@ function altFireLogic()
 		checkAxis(aabbMinPos, aabbMaxPos, 3)
 		
 		if firingMode == 1 then
-			collapseAaBb(aabbMinPos, aabbMaxPos)
+			ServerCall("server.collapseAaBb", aabbMinPos, aabbMaxPos)
 		elseif firingMode == 2 then
-			cutOutAaBb(aabbMinPos, aabbMaxPos)
+			ServerCall("server.cutOutAaBb", aabbMinPos, aabbMaxPos)
 		end
 		
 		return
@@ -289,7 +350,7 @@ function altFireLogic()
 end
 
 function aimLogic()
-	local cameraTransform = GetPlayerCameraTransform()
+	local cameraTransform = GetPlayerCameraTransform(0)
 	local origin = cameraTransform.pos
 	local direction = TransformToParentVec(cameraTransform, Vec(0, 0, -1))
 	
@@ -316,42 +377,42 @@ function aimLogic()
 	end
 end
 
-function cutOutAaBb(minPos, maxPos)
+function server.cutOutAaBb(minPos, maxPos)
 	local xWidth, yWidth, zWidth, cRBT, cRBB, 
 		  cRFT, cRFB, cLBT, cLBB, cLFT, cLFB = getAaBbCorners(minPos, maxPos, 1)
 	
 	-- front
-	collapseAaBb(cLFT, cRFB, cutModeExtraWide, cutModePerUnit, cutModeHoleSize, cutModeOverrideMax)
+	server.collapseAaBb(cLFT, cRFB, cutModeExtraWide, cutModePerUnit, cutModeHoleSize, cutModeOverrideMax)
 	
 	-- back
-	collapseAaBb(cLBT, cRBB, cutModeExtraWide, cutModePerUnit, cutModeHoleSize, cutModeOverrideMax)
+	server.collapseAaBb(cLBT, cRBB, cutModeExtraWide, cutModePerUnit, cutModeHoleSize, cutModeOverrideMax)
 	
 	-- left
-	collapseAaBb(cLFT, cLBB, cutModeExtraWide, cutModePerUnit, cutModeHoleSize, cutModeOverrideMax)
+	server.collapseAaBb(cLFT, cLBB, cutModeExtraWide, cutModePerUnit, cutModeHoleSize, cutModeOverrideMax)
 	
 	-- right
-	collapseAaBb(cRFT, cRBB, cutModeExtraWide, cutModePerUnit, cutModeHoleSize, cutModeOverrideMax)
+	server.collapseAaBb(cRFT, cRBB, cutModeExtraWide, cutModePerUnit, cutModeHoleSize, cutModeOverrideMax)
 	
 	-- top
-	collapseAaBb(cLFT, cRBT, cutModeExtraWide, cutModePerUnit, cutModeHoleSize, cutModeOverrideMax)
+	server.collapseAaBb(cLFT, cRBT, cutModeExtraWide, cutModePerUnit, cutModeHoleSize, cutModeOverrideMax)
 	
 	-- bottom
-	collapseAaBb(cLFB, cRBB, cutModeExtraWide, cutModePerUnit, cutModeHoleSize, cutModeOverrideMax)
+	server.collapseAaBb(cLFB, cRBB, cutModeExtraWide, cutModePerUnit, cutModeHoleSize, cutModeOverrideMax)
 end
 
-function collapseShape(shape)
+function server.collapseShape(shape)
 	local shapeMin, shapeMax = GetShapeBounds(shape)
 	
-	collapseAaBb(shapeMin, shapeMax)
+	server.collapseAaBb(shapeMin, shapeMax)
 end
 
-function collapseAaBb(minPos, maxPos, extraWide, perUnit, holeSize, overrideMax, offset)
+function server.collapseAaBb(minPos, maxPos, extraWide, perUnit, holeSize, overrideMax, offset)
 	extraWide = extraWide or 0
 	perUnit = perUnit or GetValue("PerUnit")
 	holeSize = holeSize or GetValue("HoleSize")
 	overrideMax = overrideMax or false
 	offset = offset or 0.5
-
+	
 	local xWidth = math.abs(minPos[1] - maxPos[1])
 	local yWidth = math.abs(minPos[2] - maxPos[2])
 	local zWidth = math.abs(minPos[3] - maxPos[3])

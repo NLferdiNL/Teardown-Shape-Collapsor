@@ -1,3 +1,4 @@
+#version 2
 #include "datascripts/inputList.lua"
 #include "datascripts/keybinds.lua"
 #include "scripts/ui.lua"
@@ -27,7 +28,7 @@ function menu_tick(dt)
 		setMenuOpen(true)
 	end
 	
-	if GetString("game.player.tool") == toolName and GetPlayerVehicle() == 0 and InputPressed(binds["Open_Menu"]) then
+	if GetPlayerTool(0) == toolName and GetPlayerVehicle(0) == 0 and InputPressed(binds["Open_Menu"], 0) then
 		setMenuOpen(not menuOpened)
 	end
 	
@@ -234,6 +235,18 @@ function menu_draw(dt)
 	textboxClass_drawDescriptions()
 end
 
+function server._SetValue(name, value)
+	SetValue(name, value)
+end
+
+function _SetValue(name, value)
+	SetValue(name, value)
+	
+	if IsPlayerHost() then
+		ServerCall("server._SetValue", name, value)
+	end
+end
+
 function setupTextBoxes()
 	local textBox01, newBox01 = textboxClass_getTextBox(1)
 	local textBox02, newBox02 = textboxClass_getTextBox(2)
@@ -245,8 +258,8 @@ function setupTextBoxes()
 		textBox01.limitsActive = true
 		textBox01.numberMin = 0.1
 		textBox01.numberMax = 50
-		textBox01.description = "Min: 0.1\nDefault: 5\nMax: 50"
-		textBox01.onInputFinished = function(v) SetValue("PerUnit", tonumber(v)) end
+		textBox01.description = "(Singleplayer and Host only)\nMin: 0.1\nDefault: 5\nMax: 50"
+		textBox01.onInputFinished = function(v) _SetValue("PerUnit", tonumber(v)) end
 		
 		perUnitBox = textBox01
 	end
@@ -257,9 +270,9 @@ function setupTextBoxes()
 		textBox02.numbersOnly = true
 		textBox02.limitsActive = true
 		textBox02.numberMin = 0.5
-		textBox02.numberMax = 10
-		textBox02.description = "Min: 0.5\nDefault: 10\nMax: 50"
-		textBox02.onInputFinished = function(v) SetValue("HoleSize", tonumber(v)) end
+		textBox02.numberMax = 50
+		textBox02.description = "(Singleplayer and Host only)\nMin: 0.5\nDefault: 10\nMax: 50"
+		textBox02.onInputFinished = function(v) _SetValue("HoleSize", tonumber(v)) end
 		
 		holeSizeBox = textBox02
 	end
